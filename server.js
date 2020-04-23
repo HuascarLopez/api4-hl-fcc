@@ -127,42 +127,46 @@ app.post("/api/exercise/add", function(req, res) {
 
 // Exercises log
 app.get("/api/exercise/log", function(req, res) {
-  
   const from = new Date(req.query.from);
   const to = new Date(req.query.to);
   const limit = parseInt(req.query.limit);
-  const id = req.query.userId;
 
-  User.findById(id, (err, user) => {
+  User.findById(req.query.userId, (err, user) => {
     if (err) return console.log(err);
     if (user) {
-      Exercise.find({
-        userId: req.query.userId,
-        date: {
-          $lt: to != "Invalid Date" ? to.getTime() : Date.now(),
-          $gt: from != "Invalid Date" ? from.getTime() : 0
+      Exercise.find(
+        {
+          username: user.username,
+          date: {
+            $lt: to != "Invalid Date" ? to.getTime() : Date.now(),
+            $gt: from != "Invalid Date" ? from.getTime() : 0
+          }
+        },
+        {
+          __v: 0,
+          _id: 0
         }
-      })
+      )
         .sort("-date")
         .limit(limit)
         .exec((err, exercises) => {
           if (err) return console.log(err);
-          const log = {
-            _id: id,
+          const response = {
+            _id: req.query.userId,
             username: user.username,
             from: from != "Invalid Date" ? from.toDateString() : undefined,
             to: to != "Invalid Date" ? to.toDateString() : undefined,
             count: exercises.length,
-            log: exercises.map(e => ({
-              description: e.description,
-              duration: e.duration,
-              date: e.date.toDateString()
+            log: exercises.map(ex => ({
+              description: ex.description,
+              duration: ex.duration,
+              date: ex.date.toDateString()
             }))
           };
-          res.json(log);
+          res.json(response);
         });
     } else {
-      return console.log({ status: 400, message: "User does not exist" });
+      return console.log({ status: 400, message: "unknown userId" });
     }
   });
 });
