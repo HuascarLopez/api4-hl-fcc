@@ -21,7 +21,7 @@ const exSchema = new Schema({
     type: String
   },
   duration: {
-    type: String
+    type: Number
   },
   date: {
     type: Date,
@@ -93,27 +93,27 @@ app.post("/api/exercise/add", function(req, res) {
       let newDate = "";
 
       if (req.body.date) {
-        newDate = req.body.date;
+        newDate = new Date(req.body.date);
       } else {
-        newDate = Date.now();
+        newDate = new Date();
       }
 
       Exercise.create(
         {
           username: user.username,
           description: req.body.description,
-          duration: req.body.duration,
-          date: newDate
+          duration: parseInt(req.body.duration),
+          date: newDate.toDateString()
         },
         function(err, exercise) {
           if (err) return console.log(err);
 
           res.json({
+            username: user.username,
+            description: req.body.description,
+            duration: parseInt(req.body.duration),
             _id: user._id,
-            username: exercise.username,
-            description: exercise.description,
-            duration: exercise.duration,
-            date: exercise.date
+            date: exercise.date.toDateString()
           });
         }
       );
@@ -127,25 +127,42 @@ app.post("/api/exercise/add", function(req, res) {
 
 // Exercises log
 app.get("/api/exercise/log", function(req, res) {
-  User.findOne({ _id: req.query.userId }, function(err, user) {
-    if (err) return console.log(err);
+  
+  const from = new Date(req.query.from);
+  const to = new Date(req.query.to);
+  const limit = parseInt(req.query.limit);
+  const id = req.query.userId;
 
+  User.findById(id, (err, user) => {
+    if (err) return console.log(err);
     if (user) {
-      Exercise.find({ username: user.username }, function(err, exercise) {
-        if (err) return console.log(err);
-        console.log(exercise);
-        if (exercise) {
-          res.json({
-            _id: user._id,
-            count: exercise.length,
-            log: exercise,
-          });
-        } else {
-          res.json({
-            error: "404: Log does not exist"
-          });
+      Exercise.find({
+        userId: req.query.userId,
+        date: {
+          $lt: to != "Invalid Date" ? to.getTime() : Date.now(),
+          $gt: from != "Invalid Date" ? from.getTime() : 0
         }
-      });
+      })
+        .sort("-date")
+        .limit(limit)
+        .exec((err, exercises) => {
+          if (err) return console.log(err);
+          const log = {
+            _id: id,
+            username: user.username,
+            from: from != "Invalid Date" ? from.toDateString() : undefined,
+            to: to != "Invalid Date" ? to.toDateString() : undefined,
+            count: exercises.length,
+            log: exercises.map(e => ({
+              description: e.description,
+              duration: e.duration,
+              date: e.date.toDateString()
+            }))
+          };
+          res.json(log);
+        });
+    } else {
+      return console.log({ status: 400, message: "User does not exist" });
     }
   });
 });
